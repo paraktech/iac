@@ -1,0 +1,9 @@
+# my-project/ansible/install_semaphore.yml
+---
+- name: Install and configure Semaphore
+  hosts: semaphore
+  become: yes
+  vars_files:
+    - roles/semaphore_install/vars/vault.yml
+  roles:
+    - semaphore_install

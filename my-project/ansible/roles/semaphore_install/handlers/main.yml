@@ -1,0 +1,5 @@
+# my-project/ansible/roles/semaphore_install/handlers/main.yml
+- name: Restart Semaphore
+  systemd:
+    name: "{{ semaphore_service_name }}"
+    state: restarted

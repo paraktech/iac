@@ -1,0 +1,71 @@
+# my-project/ansible/roles/semaphore_install/tasks/main.yml
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install dependencies
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - wget
+    - default-mysql-server   # Utilisation du paquet default-mysql-server
+
+- name: Download Semaphore
+  get_url:
+    url: "https://github.com/ansible-semaphore/semaphore/releases/download/v{{ semaphore_version }}/semaphore_{{ semaphore_version }}_linux_amd64.deb"
+    dest: "/tmp/semaphore_{{ semaphore_version }}_linux_amd64.deb"
+
+- name: Install Semaphore
+  apt:
+    deb: "/tmp/semaphore_{{ semaphore_version }}_linux_amd64.deb"
+
+- name: Create Semaphore user
+  user:
+    name: "{{ semaphore_user }}"
+    state: present
+    create_home: yes
+
+- name: Initialize Semaphore configuration
+  shell: "semaphore -setup -config /home/{{ semaphore_user }}/config.json"
+  args:
+    creates: "/home/{{ semaphore_user }}/config.json"
+  environment:
+    SEMAPHORE_DB: "{{ semaphore_db_name }}"
+    SEMAPHORE_DB_USER: "{{ semaphore_db_user }}"
+    SEMAPHORE_DB_PASS: "{{ semaphore_db_password }}"
+    SEMAPHORE_DB_HOST: "{{ semaphore_db_host }}"
+    SEMAPHORE_DB_PORT: "{{ semaphore_db_port }}"
+    SEMAPHORE_PORT: "{{ semaphore_port }}"
+  become: true
+  become_user: "{{ semaphore_user }}"
+  vars:
+    ansible_become_exe: ""
+    ansible_become: true
+    ansible_become_user: "{{ semaphore_user }}"
+    ansible_become_method: "su"
+    ansible_become_flags: "-H -c '/bin/bash -c \"{{ command }}\"'"
+
+- name: Create Semaphore service file
+  copy:
+    dest: "/etc/systemd/system/{{ semaphore_service_name }}.service"
+    content: |
+      [Unit]
+      Description=Semaphore Ansible UI
+      After=network.target
+
+      [Service]
+      Type=simple
+      User={{ semaphore_user }}
+      ExecStart=/usr/bin/semaphore -config /home/{{ semaphore_user }}/config.json
+      Restart=on-failure
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: Restart Semaphore
+
+- name: Enable and start Semaphore service
+  systemd:
+    name: "{{ semaphore_service_name }}"
+    enabled: yes
+    state: started
